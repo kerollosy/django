@@ -134,8 +134,9 @@ class PlaywrightTestCase(LiveServerTestCase, metaclass=PlaywrightTestCaseBase):
         cls.playwright = cls.create_playwright()
 
         cls.browser = cls.create_browser(cls.playwright)
-        cls.page = cls.browser.new_page()
-        cls.page.set_default_timeout(cls.implicit_wait)
+        cls.browser_ctx = cls.browser.new_context()
+        cls.browser_ctx.set_default_timeout(cls.implicit_wait)
+        cls.page = cls.browser_ctx.new_page()
 
         super().setUpClass()
         cls.addClassCleanup(cls._quit_playwright)
@@ -185,7 +186,7 @@ class PlaywrightTestCase(LiveServerTestCase, metaclass=PlaywrightTestCaseBase):
         if features is not None:
             params["features"] = features
 
-        client = self.browser.new_cdp_session(self.page)
+        client = self.browser_ctx.new_cdp_session(self.page)
         client.send("Emulation.setEmulatedMedia", params)
 
     @contextmanager
@@ -216,6 +217,8 @@ class PlaywrightTestCase(LiveServerTestCase, metaclass=PlaywrightTestCaseBase):
 
     @classmethod
     def _quit_playwright(cls):
+        if hasattr(cls, "browser_ctx"):
+            cls.browser_ctx.close()
         if hasattr(cls, "browser"):
             cls.browser.close()
         if hasattr(cls, "playwright"):
