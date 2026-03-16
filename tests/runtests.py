@@ -27,7 +27,7 @@ else:
     from django.test import TestCase, TransactionTestCase
     from django.test.runner import get_max_test_processes, parallel_type
     from django.test.selenium import SeleniumTestCase, SeleniumTestCaseBase
-    from django.test.playwright import PlaywrightTestCaseBase
+    from django.test.playwright import PlaywrightTestCaseBase, PlaywrightTestCase
     from django.test.utils import NullTimeKeeper, TimeKeeper, get_runner
     from django.utils.deprecation import RemovedInDjango70Warning
     from django.utils.functional import classproperty
@@ -802,6 +802,9 @@ if __name__ == "__main__":
             options.tags.append("playwright")
         PlaywrightTestCaseBase.headless = options.headless
         PlaywrightTestCaseBase.browsers = options.playwright
+        if options.screenshots:
+            options.tags = ["screenshot"]
+            PlaywrightTestCase.screenshots = options.screenshots
 
     if options.bisect:
         bisect_tests(
