@@ -94,7 +94,7 @@ class ChangeWindowSize:
 
 @tag("playwright")
 class PlaywrightTestCase(LiveServerTestCase, metaclass=PlaywrightTestCaseBase):
-    implicit_wait = 10
+    implicit_wait = 10000  # Playwright timeouts are in milliseconds
     screenshots = False
 
     @classmethod
