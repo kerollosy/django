@@ -134,8 +134,8 @@ class PlaywrightTestCase(LiveServerTestCase, metaclass=PlaywrightTestCaseBase):
         cls.playwright = cls.create_playwright()
 
         cls.browser = cls.create_browser(cls.playwright)
-        cls.browser.set_default_timeout(cls.implicit_wait)
         cls.page = cls.browser.new_page()
+        cls.page.set_default_timeout(cls.implicit_wait)
 
         super().setUpClass()
         cls.addClassCleanup(cls._quit_playwright)
