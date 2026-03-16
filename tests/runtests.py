@@ -726,8 +726,8 @@ if __name__ == "__main__":
         )
     if using_selenium_hub and not options.external_host:
         parser.error("--selenium-hub and --external-host must be used together.")
-    if options.screenshots and not options.selenium:
-        parser.error("--screenshots require --selenium to be used.")
+    if options.screenshots and not (options.selenium or options.playwright):
+        parser.error("--screenshots require --selenium or --playwright to be used.")
     if options.screenshots and options.tags:
         parser.error("--screenshots and --tag are mutually exclusive.")
 
