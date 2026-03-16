@@ -217,6 +217,8 @@ class PlaywrightTestCase(LiveServerTestCase, metaclass=PlaywrightTestCaseBase):
 
     @classmethod
     def _quit_playwright(cls):
+        if hasattr(cls, "page"):
+            cls.page.close()
         if hasattr(cls, "browser_ctx"):
             cls.browser_ctx.close()
         if hasattr(cls, "browser"):
