@@ -224,16 +224,13 @@ class PlaywrightTestCase(LiveServerTestCase, metaclass=PlaywrightTestCaseBase):
     def assertNoAccessibilityViolations(self, context=None, options=None):
         if not HAS_AXE:
             self.skipTest("axe-playwright-python is not installed")
-        kwargs = {}
-        if context is not None:
-            kwargs["context"] = context
-        if options is not None:
-            kwargs["options"] = options
-        results = Axe().run(self.page, **kwargs)
+
+        # https://github.com/dequelabs/axe-core/blob/develop/doc/API.md
+        results = Axe().run(self.page, context, options)
         self.assertEqual(
             results.violations_count,
             0,
-            f"Accessibility violations found:\n{results.generate_report()}",
+            "Accessibility violations found:\n%s" % results.generate_report(),
         )
 
     @classmethod
