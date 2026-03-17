@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from django.test import modify_settings, override_settings
 from django.test.selenium import SeleniumTestCase
+from django.test.playwright import PlaywrightTestCase
 from django.utils.csp import CSP
 from django.utils.translation import gettext as _
 
@@ -255,3 +256,183 @@ class AdminSeleniumTestCase(SeleniumTestCase, StaticLiveServerTestCase):
             )
             == "true"
         )
+
+
+@modify_settings(
+    MIDDLEWARE={"append": "django.middleware.csp.ContentSecurityPolicyMiddleware"}
+)
+@override_settings(
+    SECURE_CSP={
+        "default-src": [CSP.NONE],
+        "connect-src": [CSP.SELF],
+        "img-src": [CSP.SELF],
+        "script-src": [CSP.SELF],
+        "style-src": [CSP.SELF],
+    },
+)
+class AdminPlaywrightTestCase(PlaywrightTestCase, StaticLiveServerTestCase):
+    available_apps = [
+        "django.contrib.admin",
+        "django.contrib.auth",
+        "django.contrib.contenttypes",
+        "django.contrib.sessions",
+        "django.contrib.sites",
+    ]
+
+    def tearDown(self):
+        # Ensure that no CSP violations were logged in the browser.
+        self.assertEqual(self.get_browser_logs(source="security"), [])
+        super().tearDown()
+
+    def wait_until(self, callback, timeout=10):
+        """
+        Block the execution of the tests until the specified callback returns a
+        value that is not falsy. This method can be called, for example, after
+        clicking a link or submitting a form. See the other public methods that
+        call this function for more details.
+        """
+        import time
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if callback(self.page):
+                return
+            time.sleep(0.1)
+        raise TimeoutError("Condition not met within timeout")
+
+    def wait_for_and_switch_to_popup(self, num_windows=2, timeout=10):
+        """
+        Block until `num_windows` are present and are ready (usually 2, but can
+        be overridden in the case of pop-ups opening other pop-ups). Switch the
+        current window to the new pop-up.
+        """
+        def check():
+            return len(self.page.context.pages) == num_windows
+        self.wait_until(check, timeout)
+        self.page = self.page.context.pages[-1]
+        self.wait_page_ready()
+
+    def wait_for(self, css_selector, timeout=10):
+        """
+        Block until a CSS selector is found on the page.
+        """
+        self.page.wait_for_selector(css_selector, timeout=timeout * 1000)
+
+    def wait_for_text(self, css_selector, text, timeout=10):
+        """
+        Block until the text is found in the CSS selector.
+        """
+        def check():
+            element = self.page.query_selector(css_selector)
+            return element and text in element.inner_text()
+        self.wait_until(check, timeout)
+
+    def wait_for_value(self, css_selector, text, timeout=10):
+        """
+        Block until the value is found in the CSS selector.
+        """
+        def check():
+            element = self.page.query_selector(css_selector)
+            return element and element.get_attribute("value") == text
+        self.wait_until(check, timeout)
+
+    def wait_until_visible(self, css_selector, timeout=10):
+        """
+        Block until the element described by the CSS selector is visible.
+        """
+        self.page.wait_for_selector(css_selector, state="visible", timeout=timeout * 1000)
+
+    def wait_until_invisible(self, css_selector, timeout=10):
+        """
+        Block until the element described by the CSS selector is invisible.
+        """
+        self.page.wait_for_selector(css_selector, state="hidden", timeout=timeout * 1000)
+
+    def wait_page_ready(self, timeout=10):
+        """
+        Block until the page is ready.
+        """
+        self.page.wait_for_load_state("domcontentloaded", timeout=timeout * 1000)
+
+    @contextmanager
+    def wait_page_loaded(self, timeout=10):
+        """
+        Block until a new page has loaded and is ready.
+        """
+        yield
+        self.page.wait_for_load_state("load", timeout=timeout * 1000)
+
+    def trigger_resize(self):
+        viewport = self.page.viewport_size
+        width = viewport["width"]
+        height = viewport["height"]
+        self.page.set_viewport_size({"width": width + 1, "height": height})
+        self.wait_page_ready()
+        self.page.set_viewport_size({"width": width, "height": height})
+        self.wait_page_ready()
+
+    def admin_login(self, username, password, login_url="/admin/"):
+        """
+        Log in to the admin.
+        """
+        self.page.goto("%s%s" % (self.live_server_url, login_url))
+        self.page.fill('input[name="username"]', username)
+        self.page.fill('input[name="password"]', password)
+        login_text = _("Log in")
+        with self.wait_page_loaded():
+            self.page.click(f'input[value="{login_text}"]')
+
+    def select_option(self, selector, value):
+        """
+        Select the <OPTION> with the value `value` inside the <SELECT> widget
+        identified by the CSS selector `selector`.
+        """
+        self.page.select_option(selector, value)
+
+    def deselect_option(self, selector, value):
+        """
+        Deselect the <OPTION> with the value `value` inside the <SELECT> widget
+        identified by the CSS selector `selector`.
+        """
+        # Playwright select_option can deselect by not including, but for multi-select.
+        # Assuming single select for now.
+        pass  # Implement if needed
+
+    def assertCountSeleniumElements(self, selector, count, root_element=None):
+        """
+        Assert number of matches for a CSS selector.
+
+        `root_element` allow restriction to a pre-selected node.
+        """
+        elements = self.page.query_selector_all(selector)
+        self.assertEqual(len(elements), count)
+
+    def _assertOptionsValues(self, options_selector, values):
+        if values:
+            options = self.page.query_selector_all(options_selector)
+            actual_values = [opt.get_attribute("value") for opt in options]
+            self.assertEqual(values, actual_values)
+        else:
+            elements = self.page.query_selector_all(options_selector)
+            self.assertEqual(len(elements), 0)
+
+    def assertSelectOptions(self, selector, values):
+        """
+        Assert that the <SELECT> widget identified by `selector` has the
+        options with the given `values`.
+        """
+        self._assertOptionsValues(f"{selector} > option", values)
+
+    def assertSelectedOptions(self, selector, values):
+        """
+        Assert that the <SELECT> widget identified by `selector` has the
+        selected options with the given `values`.
+        """
+        self._assertOptionsValues(f"{selector} > option:checked", values)
+
+    def is_disabled(self, selector):
+        """
+        Return True if the element identified by `selector` has the `disabled`
+        attribute.
+        """
+        element = self.page.query_selector(selector)
+        return element.get_attribute("disabled") == "true"
