@@ -190,6 +190,7 @@ class PlaywrightTests(AdminPlaywrightTestCase):
             password="secret",
             login_url=reverse("admin:index"),
         )
+        self.assertNoAccessibilityViolations()
 
         # `Skip link` is not present.
         skip_link = self.page.locator(".skip-to-content-link")
@@ -230,5 +231,6 @@ class PlaywrightTests(AdminPlaywrightTestCase):
         # automatically.
         with self.page.expect_navigation():
             actors_a_tag.click()
+        self.assertNoAccessibilityViolations()
         first_input = self.page.locator("#id_name")
         expect(first_input).to_be_focused()
