@@ -1,4 +1,4 @@
-from django.contrib.admin.tests import AdminSeleniumTestCase
+from django.contrib.admin.tests import AdminSeleniumTestCase, AdminPlaywrightTestCase
 from django.contrib.auth.models import User
 from django.test import override_settings
 from django.urls import reverse
@@ -169,3 +169,66 @@ class SeleniumTests(AdminSeleniumTestCase):
                     if point.is_displayed():
                         point.send_keys(Keys.TAB)
                         break
+
+
+@override_settings(ROOT_URLCONF="admin_views.urls")
+class PlaywrightTests(AdminPlaywrightTestCase):
+    available_apps = ["admin_views"] + AdminPlaywrightTestCase.available_apps
+
+    def setUp(self):
+        self.superuser = User.objects.create_superuser(
+            username="super",
+            password="secret",
+            email="super@example.com",
+        )
+
+    def test_use_skip_link_to_content(self):
+        from playwright.sync_api import expect
+
+        self.admin_login(
+            username="super",
+            password="secret",
+            login_url=reverse("admin:index"),
+        )
+
+        # `Skip link` is not present.
+        skip_link = self.page.locator(".skip-to-content-link")
+        expect(skip_link).not_to_be_in_viewport()
+
+        # 1st TAB is pressed, `skip link` is shown.
+        self.page.keyboard.press("Tab")
+        expect(skip_link).to_be_in_viewport()
+
+        # Press RETURN to skip the navbar links (view site / documentation /
+        # change password / log out) and focus first model in the admin_views
+        # list.
+        skip_link.press("Enter")
+        expect(skip_link).not_to_be_in_viewport() # `skip link` disappear.
+        self.page.keyboard.press("Tab") # The 1st TAB is the section title.
+        if self.browser == "firefox":
+            # For some reason Firefox doesn't focus the section title
+            # ('ADMIN_VIEWS').
+            pass
+        else:
+            self.page.keyboard.press("Tab")
+        actors_a_tag = self.page.get_by_role('link', name='Actors')
+        expect(actors_a_tag).to_be_focused()
+
+        # Go to Actors changelist, skip sidebar and focus "Add actor +".
+        with self.page.expect_navigation():
+            actors_a_tag.click()
+        self.page.keyboard.press("Tab")
+        skip_link = self.page.locator(".skip-to-content-link")
+        expect(skip_link).to_be_visible()
+        self.page.keyboard.press("Enter")
+        self.page.keyboard.press("Tab")
+        actors_add_url = reverse("admin:admin_views_actor_add")
+        actors_a_tag = self.page.locator(f"#content [href='{actors_add_url}']")
+        expect(actors_a_tag).to_be_focused()
+
+        # Go to the Actor form and the first input will be focused
+        # automatically.
+        with self.page.expect_navigation():
+            actors_a_tag.click()
+        first_input = self.page.locator("#id_name")
+        expect(first_input).to_be_focused()
