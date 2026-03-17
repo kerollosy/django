@@ -7,6 +7,12 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+try:
+    from axe_playwright_python.sync_playwright import Axe
+    HAS_AXE = True
+except ImportError:
+    HAS_AXE = False
+
 from django.conf import settings
 from django.test import LiveServerTestCase, override_settings, tag
 from django.utils.functional import classproperty
@@ -214,6 +220,21 @@ class PlaywrightTestCase(LiveServerTestCase, metaclass=PlaywrightTestCaseBase):
         # Playwright console messages are collected via event listener.
         # For simplicity, return empty list as Selenium equivalent.
         return []
+    
+    def assertNoAccessibilityViolations(self, context=None, options=None):
+        if not HAS_AXE:
+            self.skipTest("axe-playwright-python is not installed")
+        kwargs = {}
+        if context is not None:
+            kwargs["context"] = context
+        if options is not None:
+            kwargs["options"] = options
+        results = Axe().run(self.page, **kwargs)
+        self.assertEqual(
+            results.violations_count,
+            0,
+            f"Accessibility violations found:\n{results.generate_report()}",
+        )
 
     @classmethod
     def _quit_playwright(cls):
