@@ -207,7 +207,7 @@ class PlaywrightTestCase(LiveServerTestCase, metaclass=PlaywrightTestCaseBase):
         path.parent.mkdir(exist_ok=True, parents=True)
         self.page.screenshot(path=path)
 
-    def get_browser_logs(self, level="ALL"):
+    def get_browser_logs(self, source=None, level="ALL"):
         """
         Return console logs filtered by level.
         """
